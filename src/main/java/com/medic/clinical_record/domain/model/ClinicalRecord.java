@@ -40,6 +40,11 @@ public final class ClinicalRecord {
     public Instant updatedAt() { return updatedAt; }
     public List<Prescription> prescriptions() { return prescriptions; }
 
+    public static ClinicalRecord reconstitute(String id, String patientId, Instant createdAt,
+                                              Instant updatedAt, List<Prescription> prescriptions) {
+        return new ClinicalRecord(id, patientId, createdAt, updatedAt, prescriptions);
+    }
+
     public ClinicalRecord addPrescription(Prescription prescription) {
         Guard.requireNonNull(prescription, "prescription");
         List<Prescription> updatedPrescriptions = new ArrayList<>(this.prescriptions);
