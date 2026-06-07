@@ -7,6 +7,10 @@ package com.medic.clinical_record.domain;
 public class ResourceNotFoundException extends DomainException {
 
     public ResourceNotFoundException(String resourceName, Object identifier) {
-        super(resourceName + " not found with identifier: " + identifier);
+        this(resourceName + " not found with identifier: " + identifier);
+    }
+
+    protected ResourceNotFoundException(String message) {
+        super(message);
     }
 }
