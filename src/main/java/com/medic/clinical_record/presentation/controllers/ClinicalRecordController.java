@@ -1,7 +1,9 @@
 package com.medic.clinical_record.presentation.controllers;
 
+import com.medic.clinical_record.application.ports.in.AddPrescriptionUseCase;
 import com.medic.clinical_record.application.ports.in.CreateClinicalRecordUseCase;
 import com.medic.clinical_record.application.ports.in.GetClinicalRecordUseCase;
+import com.medic.clinical_record.presentation.dtos.AddPrescriptionRequest;
 import com.medic.clinical_record.presentation.dtos.ClinicalRecordResponse;
 import com.medic.clinical_record.presentation.dtos.CreateClinicalRecordRequest;
 import jakarta.validation.Valid;
@@ -21,7 +23,8 @@ import org.springframework.web.bind.annotation.RestController;
 public class ClinicalRecordController {
 
     private final CreateClinicalRecordUseCase createClinicalRecordUseCase;
-    private final GetClinicalRecordUseCase getClinicalRecordUseCase;
+    private final GetClinicalRecordUseCase    getClinicalRecordUseCase;
+    private final AddPrescriptionUseCase      addPrescriptionUseCase;
 
     @PostMapping
     public ResponseEntity<ClinicalRecordResponse> create(
@@ -38,5 +41,14 @@ public class ClinicalRecordController {
         return ResponseEntity.ok(
                 ClinicalRecordResponse.from(
                         getClinicalRecordUseCase.execute(patientId)));
+    }
+
+    @PostMapping("/{patientId}/prescriptions")
+    public ResponseEntity<ClinicalRecordResponse> addPrescription(
+            @PathVariable String patientId,
+            @Valid @RequestBody AddPrescriptionRequest request) {
+        return ResponseEntity.ok(
+                ClinicalRecordResponse.from(
+                        addPrescriptionUseCase.execute(patientId, request.toPrescription())));
     }
 }

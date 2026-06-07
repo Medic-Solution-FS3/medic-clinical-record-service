@@ -1,11 +1,14 @@
 package com.medic.clinical_record.presentation.controllers;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.medic.clinical_record.application.ports.in.AddPrescriptionUseCase;
 import com.medic.clinical_record.application.ports.in.CreateClinicalRecordUseCase;
 import com.medic.clinical_record.application.ports.in.GetClinicalRecordUseCase;
 import com.medic.clinical_record.domain.ClinicalRecordAlreadyExistsException;
 import com.medic.clinical_record.domain.ClinicalRecordNotFoundException;
 import com.medic.clinical_record.domain.model.ClinicalRecord;
+import com.medic.clinical_record.domain.model.Prescription;
+import com.medic.clinical_record.presentation.dtos.AddPrescriptionRequest;
 import com.medic.clinical_record.presentation.dtos.CreateClinicalRecordRequest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -16,6 +19,10 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.LocalDate;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -29,9 +36,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @DisplayName("ClinicalRecordController")
 class ClinicalRecordControllerTest {
 
-    private static final String BASE_URL   = "/api/v1/clinical-records";
-    private static final String PATIENT_ID = "patient-abc-123";
-    private static final String RECORD_ID  = "cr-001";
+    private static final String BASE_URL          = "/api/v1/clinical-records";
+    private static final String PRESCRIPTIONS_URL = BASE_URL + "/{patientId}/prescriptions";
+    private static final String PATIENT_ID        = "patient-abc-123";
+    private static final String RECORD_ID         = "cr-001";
 
     @Autowired
     private MockMvc mockMvc;
@@ -44,6 +52,9 @@ class ClinicalRecordControllerTest {
 
     @MockitoBean
     private GetClinicalRecordUseCase getClinicalRecordUseCase;
+
+    @MockitoBean
+    private AddPrescriptionUseCase addPrescriptionUseCase;
 
     // =========================================================================
     // POST /api/v1/clinical-records
@@ -269,6 +280,139 @@ class ClinicalRecordControllerTest {
                     .thenThrow(new RuntimeException("Unexpected infrastructure failure"));
 
             mockMvc.perform(get(BASE_URL + "/{patientId}", PATIENT_ID))
+                    .andExpect(status().isInternalServerError());
+        }
+    }
+
+    // =========================================================================
+    // POST /api/v1/clinical-records/{patientId}/prescriptions
+    // =========================================================================
+
+    @Nested
+    @DisplayName("POST /{patientId}/prescriptions — successful addition")
+    class SuccessfulPrescriptionAddition {
+
+        private AddPrescriptionRequest validRequest() {
+            return new AddPrescriptionRequest(
+                    "Ibuprofen", "400mg", "Take with food", LocalDate.of(2026, 6, 7));
+        }
+
+        @Test
+        @DisplayName("returns 200 OK with the updated clinical record in the response body")
+        void shouldReturn200WithUpdatedClinicalRecord() throws Exception {
+            ClinicalRecord updatedRecord = new ClinicalRecord(RECORD_ID, PATIENT_ID);
+            when(addPrescriptionUseCase.execute(eq(PATIENT_ID), any(Prescription.class)))
+                    .thenReturn(updatedRecord);
+
+            mockMvc.perform(post(PRESCRIPTIONS_URL, PATIENT_ID)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(validRequest())))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.patientId").value(PATIENT_ID));
+        }
+
+        @Test
+        @DisplayName("delegates to AddPrescriptionUseCase with the correct patientId")
+        void shouldDelegateToAddPrescriptionUseCaseWithPatientId() throws Exception {
+            ClinicalRecord updatedRecord = new ClinicalRecord(RECORD_ID, PATIENT_ID);
+            when(addPrescriptionUseCase.execute(eq(PATIENT_ID), any(Prescription.class)))
+                    .thenReturn(updatedRecord);
+
+            mockMvc.perform(post(PRESCRIPTIONS_URL, PATIENT_ID)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(validRequest())))
+                    .andExpect(status().isOk());
+
+            verify(addPrescriptionUseCase, times(1)).execute(eq(PATIENT_ID), any(Prescription.class));
+        }
+    }
+
+    @Nested
+    @DisplayName("POST /{patientId}/prescriptions — request validation failures")
+    class PrescriptionValidationFailures {
+
+        @Test
+        @DisplayName("returns 400 Bad Request when medicationName is blank")
+        void shouldReturn400WhenMedicationNameIsBlank() throws Exception {
+            mockMvc.perform(post(PRESCRIPTIONS_URL, PATIENT_ID)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"medicationName\":\"\",\"dosage\":\"400mg\"," +
+                                     "\"instructions\":\"Take with food\",\"prescribedDate\":\"2026-06-07\"}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.fieldErrors").isArray())
+                    .andExpect(jsonPath("$.fieldErrors[0].field").value("medicationName"));
+        }
+
+        @Test
+        @DisplayName("returns 400 Bad Request when dosage is blank")
+        void shouldReturn400WhenDosageIsBlank() throws Exception {
+            mockMvc.perform(post(PRESCRIPTIONS_URL, PATIENT_ID)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"medicationName\":\"Ibuprofen\",\"dosage\":\"\"," +
+                                     "\"instructions\":\"Take with food\",\"prescribedDate\":\"2026-06-07\"}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.fieldErrors").isArray())
+                    .andExpect(jsonPath("$.fieldErrors[0].field").value("dosage"));
+        }
+
+        @Test
+        @DisplayName("returns 400 Bad Request when prescribedDate is missing")
+        void shouldReturn400WhenPrescribedDateIsNull() throws Exception {
+            mockMvc.perform(post(PRESCRIPTIONS_URL, PATIENT_ID)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"medicationName\":\"Ibuprofen\",\"dosage\":\"400mg\"," +
+                                     "\"instructions\":\"Take with food\"}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.fieldErrors").isArray())
+                    .andExpect(jsonPath("$.fieldErrors[0].field").value("prescribedDate"));
+        }
+
+        @Test
+        @DisplayName("never calls the use case when prescription validation fails")
+        void shouldNotInvokeUseCaseOnValidationError() throws Exception {
+            mockMvc.perform(post(PRESCRIPTIONS_URL, PATIENT_ID)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"medicationName\":\"\",\"dosage\":\"400mg\"," +
+                                     "\"instructions\":\"Take with food\",\"prescribedDate\":\"2026-06-07\"}"))
+                    .andExpect(status().isBadRequest());
+
+            verify(addPrescriptionUseCase, never()).execute(eq(PATIENT_ID), any(Prescription.class));
+        }
+    }
+
+    @Nested
+    @DisplayName("POST /{patientId}/prescriptions — resource not found")
+    class PrescriptionPatientNotFound {
+
+        @Test
+        @DisplayName("returns 404 Not Found when the patient has no clinical record")
+        void shouldReturn404WhenPatientHasNoClinicalRecord() throws Exception {
+            when(addPrescriptionUseCase.execute(eq(PATIENT_ID), any(Prescription.class)))
+                    .thenThrow(new ClinicalRecordNotFoundException(PATIENT_ID));
+
+            mockMvc.perform(post(PRESCRIPTIONS_URL, PATIENT_ID)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"medicationName\":\"Ibuprofen\",\"dosage\":\"400mg\"," +
+                                     "\"instructions\":\"Take with food\",\"prescribedDate\":\"2026-06-07\"}"))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.status").value(404));
+        }
+    }
+
+    @Nested
+    @DisplayName("POST /{patientId}/prescriptions — unexpected errors")
+    class PrescriptionUnexpectedErrors {
+
+        @Test
+        @DisplayName("returns 500 Internal Server Error on unhandled runtime exception")
+        void shouldReturn500OnUnexpectedError() throws Exception {
+            when(addPrescriptionUseCase.execute(eq(PATIENT_ID), any(Prescription.class)))
+                    .thenThrow(new RuntimeException("Unexpected infrastructure failure"));
+
+            mockMvc.perform(post(PRESCRIPTIONS_URL, PATIENT_ID)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"medicationName\":\"Ibuprofen\",\"dosage\":\"400mg\"," +
+                                     "\"instructions\":\"Take with food\",\"prescribedDate\":\"2026-06-07\"}"))
                     .andExpect(status().isInternalServerError());
         }
     }
