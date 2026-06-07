@@ -18,7 +18,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * <p>Usage: extend this class and add {@code @Test} methods. No additional container setup needed.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
-@Testcontainers
+@Testcontainers(disabledWithoutDocker = true)
 public abstract class AbstractIntegrationTest {
 
     @Container

@@ -24,6 +24,9 @@ import java.util.List;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private static final String INTERNAL_ERROR_MESSAGE =
+            "An unexpected internal error occurred. Please try again later.";
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidation(
             MethodArgumentNotValidException ex,
@@ -50,60 +53,34 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleResourceNotFound(
-            ResourceNotFoundException ex,
-            HttpServletRequest request) {
-
-        return ResponseEntity
-                .status(HttpStatus.NOT_FOUND)
-                .body(ErrorResponse.of(
-                        HttpStatus.NOT_FOUND.value(),
-                        HttpStatus.NOT_FOUND.getReasonPhrase(),
-                        ex.getMessage(),
-                        request.getRequestURI()));
+            ResourceNotFoundException ex, HttpServletRequest request) {
+        return buildResponse(HttpStatus.NOT_FOUND, ex.getMessage(), request);
     }
 
     @ExceptionHandler(BusinessValidationException.class)
     public ResponseEntity<ErrorResponse> handleBusinessValidation(
-            BusinessValidationException ex,
-            HttpServletRequest request) {
-
-        return ResponseEntity
-                .status(HttpStatus.UNPROCESSABLE_ENTITY)
-                .body(ErrorResponse.of(
-                        HttpStatus.UNPROCESSABLE_ENTITY.value(),
-                        HttpStatus.UNPROCESSABLE_ENTITY.getReasonPhrase(),
-                        ex.getMessage(),
-                        request.getRequestURI()));
+            BusinessValidationException ex, HttpServletRequest request) {
+        return buildResponse(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage(), request);
     }
 
     @ExceptionHandler(DomainException.class)
     public ResponseEntity<ErrorResponse> handleDomain(
-            DomainException ex,
-            HttpServletRequest request) {
-
-        return ResponseEntity
-                .status(HttpStatus.BAD_REQUEST)
-                .body(ErrorResponse.of(
-                        HttpStatus.BAD_REQUEST.value(),
-                        HttpStatus.BAD_REQUEST.getReasonPhrase(),
-                        ex.getMessage(),
-                        request.getRequestURI()));
+            DomainException ex, HttpServletRequest request) {
+        return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleUnexpected(
-            Exception ex,
-            HttpServletRequest request) {
-
+            Exception ex, HttpServletRequest request) {
         log.error("Unhandled exception on [{} {}]: {}",
                 request.getMethod(), request.getRequestURI(), ex.getMessage(), ex);
+        return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, INTERNAL_ERROR_MESSAGE, request);
+    }
 
+    private ResponseEntity<ErrorResponse> buildResponse(
+            HttpStatus status, String message, HttpServletRequest request) {
         return ResponseEntity
-                .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ErrorResponse.of(
-                        HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                        HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase(),
-                        "An unexpected internal error occurred. Please try again later.",
-                        request.getRequestURI()));
+                .status(status)
+                .body(ErrorResponse.of(status.value(), status.getReasonPhrase(), message, request.getRequestURI()));
     }
 }

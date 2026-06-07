@@ -26,7 +26,7 @@ public record ErrorResponse(
     public record FieldValidationError(String field, Object rejectedValue, String message) {}
 
     public static ErrorResponse of(int status, String error, String message, String path) {
-        return new ErrorResponse(Instant.now(), status, error, message, path, null);
+        return ofValidation(status, error, message, path, null);
     }
 
     public static ErrorResponse ofValidation(
