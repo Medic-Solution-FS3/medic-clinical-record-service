@@ -1,6 +1,7 @@
 name: Deploy clinical-record-service
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
 
