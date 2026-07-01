@@ -34,5 +34,5 @@ jobs:
         run: |
           aws ecs update-service \
             --cluster medic-cluster \
-            --service medic-clinical-record-service \
+            --service clinical-record-service \
             --force-new-deployment
