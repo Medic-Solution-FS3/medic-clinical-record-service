@@ -1,6 +1,7 @@
 package com.medic.clinical_record.presentation.exceptions;
 
 import com.medic.clinical_record.domain.BusinessValidationException;
+import com.medic.clinical_record.domain.DomainException;
 import com.medic.clinical_record.domain.ResourceNotFoundException;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -61,6 +62,15 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void shouldReturn400WhenGenericDomainExceptionThrown() throws Exception {
+        mockMvc.perform(get("/test/domain-error"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status", is(400)))
+                .andExpect(jsonPath("$.error", is("Bad Request")))
+                .andExpect(jsonPath("$.message", is("Generic domain rule violated")));
+    }
+
+    @Test
     void shouldReturn500WithOpaqueMessageWhenUnexpectedError() throws Exception {
         mockMvc.perform(get("/test/unexpected"))
                 .andExpect(status().isInternalServerError())
@@ -109,11 +119,23 @@ class GlobalExceptionHandlerTest {
             throw new RuntimeException("Something went very wrong internally");
         }
 
+        @GetMapping("/domain-error")
+        String domainError() {
+            throw new TestDomainException("Generic domain rule violated");
+        }
+
         @PostMapping("/validate")
         String validate(@Valid @RequestBody ValidatedRequest request) {
             return request.name();
         }
 
         record ValidatedRequest(@NotBlank String name) {}
+    }
+
+    /** Concrete subclass used to exercise the generic {@code DomainException} handler directly. */
+    static final class TestDomainException extends DomainException {
+        TestDomainException(String message) {
+            super(message);
+        }
     }
 }
